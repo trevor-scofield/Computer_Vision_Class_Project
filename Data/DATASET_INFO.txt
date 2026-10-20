@@ -1,0 +1,18 @@
+Dataset: HaGRID community subset (100 images per category)
+Source: https://huggingface.co/datasets/GestureDetectionConnoisseurs/hagrid_subsets
+Original dataset: https://github.com/hukenovs/hagrid
+Subset archive: hagrid-export_100_images.zip (about 402 MB)
+Labels: 34 categories, 100 images per category, 3,400 total
+Prepared split: Data/hagrid/train (80 per category) and Data/hagrid/test (20 per category)
+Sampler seed: 42
+
+The archive is a third-party subset, not an official HaGRID release. The host
+labels it CC BY-SA 4.0. Keep HaGRID attribution and review the original
+dataset's CC BY-SA 4.0 variant license before redistribution.
+
+Train with:
+  python main_gesture.py train --data Data/hagrid --epochs 8
+
+Prepared files are kept locally and excluded from Git by .gitignore because the
+image data is large. The archive and extracted source are under Data/downloads
+and Data/hagrid_source, respectively.

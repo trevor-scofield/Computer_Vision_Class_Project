@@ -1,4 +1,4 @@
-"""Fine-tune a compact pretrained image classifier on data/hagrid."""
+"""Fine-tune a compact pretrained image classifier on Data/hagrid."""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from torchvision import datasets, models, transforms
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=Path("data/hagrid"))
+    parser.add_argument("--data", type=Path, default=Path("Data/hagrid"))
     parser.add_argument("--output", type=Path, default=Path("models/hagrid_resnet18.pth"))
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=32)

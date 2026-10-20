@@ -25,7 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True,
                         help="Extracted HaGRID folder containing one folder per gesture")
-    parser.add_argument("--output", type=Path, default=Path("data/hagrid"))
+    parser.add_argument("--output", type=Path, default=Path("Data/hagrid"))
     parser.add_argument("--count", type=int, default=5000, help="Total images (default: 5000)")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

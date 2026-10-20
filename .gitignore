@@ -1,0 +1,5 @@
+.venv/
+models/
+Data/downloads/
+Data/hagrid_source/
+Data/hagrid/

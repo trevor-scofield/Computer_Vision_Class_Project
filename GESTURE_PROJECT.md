@@ -25,13 +25,13 @@ attribution and check the original dataset's license terms before redistributing
 images or a model trained on them.
 
 ```powershell
-New-Item -ItemType Directory -Force data\downloads, data\hagrid_source | Out-Null
+New-Item -ItemType Directory -Force Data\downloads, Data\hagrid_source | Out-Null
 Invoke-WebRequest `
   -Uri "https://huggingface.co/datasets/GestureDetectionConnoisseurs/hagrid_subsets/resolve/main/hagrid-export_100_images.zip" `
-  -OutFile "data\downloads\hagrid-export_100_images.zip"
-Expand-Archive -Path "data\downloads\hagrid-export_100_images.zip" -DestinationPath "data\hagrid_source" -Force
-python main_gesture.py prepare --source data\hagrid_source --output data\hagrid --count 3400
-python main_gesture.py train --data data\hagrid --epochs 8
+  -OutFile "Data\downloads\hagrid-export_100_images.zip"
+Expand-Archive -Path "Data\downloads\hagrid-export_100_images.zip" -DestinationPath "Data\hagrid_source" -Force
+python main_gesture.py prepare --source Data\hagrid_source --output Data\hagrid --count 3400
+python main_gesture.py train --data Data\hagrid --epochs 8
 ```
 
 The archive page reports a 402 MB ZIP. If the prepared subset reports that a
@@ -43,11 +43,12 @@ into a location with enough free space, extract them, and arrange them as
 `<extracted-root>/<gesture>/<image>.jpg`. Then create a balanced subset:
 
 ```powershell
-python prepare_hagrid.py --source D:\datasets\hagrid_dataset --output data\hagrid --count 5000
+python prepare_hagrid.py --source D:\datasets\hagrid_dataset --output Data\hagrid --count 5000
 ```
 
 This includes all 34 labels at roughly 147 images per label (the final two get
-one extra), sampled deterministically. It makes an 80/20 train/test split.
+one extra), sampled deterministically. It makes an 80/20 train/test split under
+`Data/hagrid` by default.
 
 ## Main project entry point
 
@@ -58,8 +59,8 @@ three stages below:
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-gestures.txt
-python main_gesture.py prepare --source D:\datasets\hagrid_dataset --output data\hagrid --count 5000
-python main_gesture.py train --data data\hagrid --epochs 8
+python main_gesture.py prepare --source D:\datasets\hagrid_dataset --output Data\hagrid --count 5000
+python main_gesture.py train --data Data\hagrid --epochs 8
 python main_gesture.py play --model models\hagrid_resnet18.pth --camera 0
 ```
 
