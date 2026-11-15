@@ -16,3 +16,15 @@ Train with:
 Prepared files are kept locally and excluded from Git by .gitignore because the
 image data is large. The archive and extracted source are under Data/downloads
 and Data/hagrid_source, respectively.
+
+Training record (November 9, 2026):
+  Model: ResNet18, fine-tuned for 8 epochs from the previous project checkpoint
+  Augmentation: horizontal flips are disabled for peace/peace_inverted,
+    stop/stop_inverted, and two_up/two_up_inverted; other classes can flip
+  Epoch 8 train accuracy: 98.6%
+  Epoch 8 test accuracy: 66.8% (680 images)
+  Best observed test accuracy in this run: 66.8% at epoch 8
+
+The test split was sampled by image rather than subject and is small, so treat
+this score as an initial result. The high train/test gap suggests overfitting.
+The saved checkpoint is models/hagrid_resnet18.pth.
