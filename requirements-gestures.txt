@@ -2,4 +2,5 @@ torch
 torchvision
 opencv-python
 pillow
-cvzone
+mediapipe
+pydirectinput

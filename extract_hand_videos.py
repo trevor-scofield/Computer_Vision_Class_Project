@@ -12,12 +12,14 @@ from pathlib import Path
 
 import cv2
 
+from handTrack import HandTracker
 
-def label_from_filename(path: Path) -> str:
-    """Convert the supplied clip names into stable folder labels."""
+
+def labels_from_filename(path: Path) -> tuple[str | None, str | None]:
+    """Return (explicit full label, gesture) for named-side and generic clips."""
     name = re.sub(r"[^a-z]", "", path.stem.lower())
     if "nohand" in name:
-        return "no_hand"
+        return "no_hand", "no_hand"
     for prefix, side in (("lefthand", "left"), ("righthand", "right")):
         if name.startswith(prefix):
             gesture = name[len(prefix):]
@@ -29,7 +31,19 @@ def label_from_filename(path: Path) -> str:
                 "fist": "fist",
             }
             if gesture in aliases:
-                return f"{side}_{aliases[gesture]}"
+                normalized = aliases[gesture]
+                return f"{side}_{normalized}", normalized
+    aliases = {
+        "fist": "fist",
+        "openpalm": "open_palm",
+        "thumbsup": "thumbs_up",
+        "peacesign": "two_fingers",
+        "pointing": "one_finger",
+    }
+    # Numbered generic clips get their side from MediaPipe, not their suffix.
+    for alias, gesture in aliases.items():
+        if name.startswith(alias) and name[len(alias):] in {"", "1", "2"}:
+            return None, gesture
     raise ValueError(f"Unrecognized video filename: {path.name}")
 
 
@@ -63,6 +77,7 @@ def main() -> None:
         with manifest_path.open(newline="", encoding="utf-8") as existing_file:
             existing_sources = {row["source_video"] for row in csv.DictReader(existing_file)}
     manifest_mode = "a" if manifest_path.exists() else "w"
+    tracker = HandTracker(max_hands=1, detection_confidence=0.5, running_mode="VIDEO")
     with manifest_path.open(manifest_mode, newline="", encoding="utf-8") as manifest_file:
         writer = csv.DictWriter(manifest_file,
                                 fieldnames=("image", "label", "source_video", "time_seconds"))
@@ -72,7 +87,7 @@ def main() -> None:
             if video_path.name in existing_sources:
                 print(f"Already extracted; skipping: {video_path.name}")
                 continue
-            label = label_from_filename(video_path)
+            explicit_label, gesture = labels_from_filename(video_path)
             cap = cv2.VideoCapture(str(video_path))
             if not cap.isOpened():
                 print(f"Skipping unreadable video: {video_path.name}")
@@ -85,11 +100,10 @@ def main() -> None:
                 continue
 
             stride = max(1, round(fps * args.sample_seconds))
-            first = round(frame_count * args.trim_fraction) if label != "no_hand" else 0
-            last = round(frame_count * (1 - args.trim_fraction)) if label != "no_hand" else frame_count
-            target_dir = args.output_dir / label
-            target_dir.mkdir(parents=True, exist_ok=True)
+            first = round(frame_count * args.trim_fraction) if explicit_label != "no_hand" else 0
+            last = round(frame_count * (1 - args.trim_fraction)) if explicit_label != "no_hand" else frame_count
             saved = 0
+            output_label = explicit_label or f"detected_{gesture}"
             frame_index = 0
             while frame_index < last:
                 ok, frame = cap.read()
@@ -97,6 +111,20 @@ def main() -> None:
                     break
                 if frame_index >= first and (frame_index - first) % stride == 0:
                     time_seconds = frame_index / fps
+                    label = explicit_label
+                    if label is None:
+                        hands, _ = tracker.detect(frame, timestamp_ms=round(time_seconds * 1000))
+                        if not hands:
+                            frame_index += 1
+                            continue
+                        side = hands[0]["detected_handedness"]
+                        if side not in {"left", "right"}:
+                            frame_index += 1
+                            continue
+                        label = f"{side}_{gesture}"
+                    output_label = label
+                    target_dir = args.output_dir / label
+                    target_dir.mkdir(parents=True, exist_ok=True)
                     filename = f"{video_path.stem}_{time_seconds:06.2f}s.jpg"
                     image_path = target_dir / filename
                     if cv2.imwrite(str(image_path), frame):
@@ -110,7 +138,9 @@ def main() -> None:
                 frame_index += 1
             cap.release()
             total += saved
-            print(f"{video_path.name}: {saved} frames -> {label}")
+            print(f"{video_path.name}: {saved} frames -> {output_label}")
+
+    tracker.close()
 
     print(f"Saved {total} frames and manifest: {manifest_path.resolve()}")
     print("These are frame labels from the video names; visually review the clips "

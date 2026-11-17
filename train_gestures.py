@@ -37,6 +37,9 @@ def main() -> None:
         raise SystemExit("Train/test class folders differ")
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
+    print(f"Training on {device}: {len(train_ds)} training images, "
+          f"{len(test_ds)} test images, {len(train_ds.classes)} classes, "
+          f"{args.epochs} epochs.", flush=True)
 
     if args.resume_from:
         checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
@@ -59,9 +62,11 @@ def main() -> None:
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=2e-4)
     loss_fn = nn.CrossEntropyLoss()
+    progress_interval = max(1, (len(train_dl) + 9) // 10)
     for epoch in range(args.epochs):
         model.train()
         total_loss = correct = seen = 0
+        print(f"Starting epoch {epoch + 1}/{args.epochs}", flush=True)
         for batch_index, (images, labels) in enumerate(train_dl, start=1):
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad(set_to_none=True)
@@ -72,9 +77,13 @@ def main() -> None:
             total_loss += loss.item() * labels.size(0)
             correct += (logits.argmax(1) == labels).sum().item()
             seen += labels.size(0)
-            if batch_index % 20 == 0:
-                print(f"Epoch {epoch + 1}/{args.epochs}: "
-                      f"batch {batch_index}/{len(train_dl)}", flush=True)
+            if (batch_index == 1 or batch_index % progress_interval == 0
+                    or batch_index == len(train_dl)):
+                batch_loss = loss.item()
+                progress = 100 * batch_index / len(train_dl)
+                print(f"Epoch {epoch + 1}/{args.epochs} | "
+                      f"batch {batch_index}/{len(train_dl)} ({progress:.0f}%) | "
+                      f"loss={batch_loss:.4f}", flush=True)
         model.eval()
         test_correct = test_seen = 0
         with torch.no_grad():

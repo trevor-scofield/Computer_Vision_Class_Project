@@ -26,7 +26,9 @@ def main() -> None:
 
     for row in rows:
         source_video = Path(row["source_video"]).stem.lower()
-        split = "test" if source_video.endswith("-2") else "train"
+        # Keep complete takes isolated: legacy clips use -2 for the held-out
+        # take; the newer generic clips use the 1/2 suffix convention.
+        split = "test" if source_video.endswith(("-2", "2")) else "train"
         source_image = args.frames / row["image"]
         if not source_image.is_file():
             raise SystemExit(f"Missing image listed in manifest: {source_image}")

@@ -31,7 +31,7 @@ Invoke-WebRequest `
   -OutFile "Data\downloads\hagrid-export_100_images.zip"
 Expand-Archive -Path "Data\downloads\hagrid-export_100_images.zip" -DestinationPath "Data\hagrid_source" -Force
 python main_gesture.py prepare --source Data\hagrid_source --output Data\hagrid --count 3400
-python main_gesture.py train --data Data\hagrid --epochs 8
+python prepare_hand_crops.py --data Data\hagrid --output Data\hagrid_controller_crops --label-with-detected-side --controller-gestures-only
 ```
 
 The archive page reports a 402 MB ZIP. If the prepared subset reports that a
@@ -60,19 +60,22 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements-gestures.txt
 python main_gesture.py prepare --source D:\datasets\hagrid_dataset --output Data\hagrid --count 5000
-python main_gesture.py train --data Data\hagrid --epochs 8
-python main_gesture.py play --model models\hagrid_resnet18.pth --camera 0 --max-cameras 6
+python prepare_hand_crops.py --data Data\hagrid --output Data\hagrid_controller_crops --label-with-detected-side --controller-gestures-only
+python main_gesture.py train --data Data\hagrid_controller_crops --output models\hagrid_controller.pth --epochs 25
+python main_gesture.py play --model models\hagrid_controller.pth --camera 0 --max-cameras 6
 ```
 
 While the camera preview is open, press `C` to cycle through camera indexes
 `0` to `--max-cameras - 1`, press a number key `0`-`9` to select that camera
-index directly, and press `Q` to quit. Camera indexes are provided by OpenCV;
+index directly, and press `Escape` to quit. Camera indexes are provided by OpenCV;
 if a camera is unavailable, the preview stays on the current camera.
 On Windows, the camera reader tries DirectShow first and then Media Foundation;
 the active backend is shown in the preview. If a camera stops returning frames,
 quit and restart the controller before selecting another camera.
 The live preview also checks for a hand before classifying a gesture and displays
-`No hand detected` when the detector does not find one.
+`No hand detected` when the detector does not find one. Crop HaGRID images with
+MediaPipe before training; its `no_gesture` category is excluded because the
+live controller already handles hand absence.
 
 Get stage-specific options with `python main_gesture.py train --help` (or
 `prepare` / `play`).
@@ -91,28 +94,59 @@ python extract_hand_videos.py --input-dir C:\Users\TJSCO\Downloads\Photos-1-001
 
 The extractor samples one frame every 0.5 seconds, skips the first and last
 15% of gesture clips, and stores labels such as `left_one_finger` and
-`right_fist` under `Data/recorded_hand_frames`. `frames.csv` records each
-image's source clip and timestamp. These are starting examples, not a reliable
-evaluation set: collect several separate takes and lighting conditions before
-splitting by clip and training. The current live pipeline still classifies a
-whole frame; per-hand cropping and independent two-hand controls are a separate
-runtime change.
+`right_fist` under `Data/recorded_hand_frames`. Generic names such as
+`Fist1.mp4`, `peacesign2.mp4`, and `pointing1.mp4` are also supported; MediaPipe
+assigns their left/right label from each detected hand. Numbered `1` clips are
+training takes and numbered `2` clips are held out for testing. `frames.csv`
+records each image's source clip and timestamp. The preparation script then
+uses MediaPipe to crop each detected hand and export its landmark metadata.
 
-Prepare and train on two sets of personal clips (original clips for training,
-`*-2.mp4` clips held out for testing) with:
+The new numbered videos are in the second folder. Extract their frames, split
+by take, and create MediaPipe hand crops:
 
 ```powershell
-python prepare_recorded_hand_data.py --frames Data\recorded_hand_frames --output Data\recorded_hand_split
-python main_gesture.py train --data Data\recorded_hand_split --output models\hand_side_resnet18.pth --epochs 8
+python extract_hand_videos.py --input-dir "C:\Users\TJSCO\Downloads\Photos-1-001 (1)"
+python prepare_recorded_hand_data.py --frames Data\recorded_hand_frames --output Data\recorded_hand_split_mediapipe
+python prepare_hand_crops.py --data Data\recorded_hand_split_mediapipe --output Data\recorded_hand_crops_mediapipe
+python prepare_hand_crops.py --data Data\hagrid --output Data\hagrid_controller_crops --label-with-detected-side --controller-gestures-only
+python merge_hand_datasets.py --inputs Data\recorded_hand_crops_mediapipe Data\hagrid_controller_crops --output Data\combined_hand_training
+python main_gesture.py train --data Data\combined_hand_training --output models\hand_controller_mediapipe.pth --epochs 25
 ```
 
-The default controller mapping is in `play_gestures.py` (`one`=W, `two_up`=D,
-`fist`=S, `palm`=Space, `like`=A). The starter displays the mapped key; it does
-not inject keypresses into games. Add `pydirectinput` or another input library
-only after checking the target game's input/anti-cheat policy. A temporal
-confidence/debounce layer is also recommended before sending live controls.
+HaGRID's `fist`, `one`, `peace`, `palm`, and `like` labels are normalized to
+the project's five gestures; MediaPipe supplies their left/right prefixes.
+The merge keeps classes with train and test images in both sources. The live
+controller resolves generic HaGRID class names with the tracked hand's side.
 
-`handTrack.py` currently depends on cvzone and uses hard-coded coordinate rules
-that can misclassify mirrored or rotated hands. HaGRID's image classifier gives
-you a trainable baseline first; use MediaPipe/cvzone landmarks separately for
-movement and normalize coordinates relative to the detected hand bounding box.
+The crop-preparation step uses the reusable tracker in `handTrack.py`, the same
+square crop as live prediction, and writes `landmarks_train.csv` and
+`landmarks_test.csv` beside the cropped images. Each row includes normalized
+hand-box and center positions, wrist position, and all 21 landmarks in both
+frame coordinates and hand-box-relative coordinates, MediaPipe handedness and
+its confidence, and 3D hand-relative world landmarks. It skips `no_hand` images
+because live mode reports that state directly from hand detection. The live
+preview draws each predicted label and normalized center (`x`, `y`) above its
+hand box; coordinates run from 0 at the left/top to 1 at the right/bottom. The
+preview also shows MediaPipe's anatomical left/right estimate. Keep the camera
+frames unmirrored for consistent handedness labels. The included
+`hand_landmarker.task` model is used by both data preparation and live mode.
+
+The controller maps left-hand classes to movement (`left_one_finger`=W,
+`left_two_fingers`=D, `left_fist`=S, `left_thumbs_up`=A,
+`left_open_palm`=Space) and right-hand classes to actions (`right_one_finger`=Enter,
+`right_two_fingers`=X, `right_fist`=C, `right_thumbs_up`=Q,
+`right_open_palm`=F). It holds the mapped key while the gesture remains stable
+and releases it when the hand or gesture is lost. The default debounce requires
+three consistent frames. Install dependencies with
+`python -m pip install -r requirements-gestures.txt`, focus the game window
+after starting the camera controller, and check its `Keys held` status. Use
+`--preview-only` to test detection without sending inputs. Escape exits the
+preview; C still cycles cameras.
+
+`handTrack.py` wraps Google's MediaPipe Tasks Hand Landmarker in VIDEO mode for
+the live camera and IMAGE mode for independent training images. It provides
+21 image landmarks, anatomical handedness, and 3D hand-relative world
+landmarks. The gesture classifier and tracker remain separate so the gesture
+model does not mistake where the hand appears in one recording for what gesture
+it is. After switching trackers, regenerate the hand crops and landmark CSVs
+before training so they come from the same detector used at runtime.

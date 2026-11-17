@@ -1,5 +1,16 @@
 .venv/
+__pycache__/
+*.py[cod]
+.codex/presentation-build/
+tmp/presentation-build/
 models/
 Data/downloads/
 Data/hagrid_source/
 Data/hagrid/
+Data/recorded_hand_frames/
+Data/recorded_hand_split/
+Data/recorded_hand_split_mediapipe/
+Data/recorded_hand_crops/
+Data/recorded_hand_crops_mediapipe/
+Data/hagrid_controller_crops/
+Data/combined_hand_training/
